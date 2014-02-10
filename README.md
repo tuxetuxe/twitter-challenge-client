@@ -1,6 +1,12 @@
 twitter-challenge-client
 ========================
 
+# Requirements
+* httplib2
+	+ pip install httplib2
+* pudb (just for debugging)
+	+ pip install pudb
+	
 # Usage
 
 ```
