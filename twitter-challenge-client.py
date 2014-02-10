@@ -20,24 +20,39 @@ authentication_token = None
 def base_url():
     return "http://"+host+"/rest/"
 
-def doPost(request_url,content_type="application/json"):
-    return doHttpRequest(request_url,"POST",content_type)
+def doPut(request_url,url_parameters = {}, body=None,content_type="application/json",):
+    return doHttpRequest(request_url,"PUT",content_type,url_parameters,body)
     
-def doGet(request_url,content_type="application/json"):
-    return doHttpRequest(request_url,"GET",content_type)
+def doPost(request_url,url_parameters = {}, body=None,content_type="application/json",):
+    return doHttpRequest(request_url,"POST",content_type,url_parameters,body)
+
+def doDelete(request_url,url_parameters = {}, body=None,content_type="application/json",):
+    return doHttpRequest(request_url,"DELETE",content_type,url_parameters,body)
+        
+def doGet(request_url,url_parameters = {},content_type="application/json",):
+    return doHttpRequest(request_url,"GET",content_type,url_parameters, None)
     
-def doHttpRequest(request_url, method, content_type="application/json"):
+def doHttpRequest(request_url, method, content_type="application/json", url_parameters = {}, body=None):
     global authentication_token
     
     url = base_url() + request_url 
 
     if authentication_token is not None:
-        url = url + "?token=" + authentication_token
+        url_parameters["token"] = authentication_token
+        
+    if url_parameters is not None and len( url_parameters ) > 0:
+         url += "?"
+         for key, value in url_parameters.iteritems():
+             url += key + "=" + value + "&"
+         url = url[:-1]
 
     headers = {"Content-Type": content_type}
     
     print "\tURL: " + url
            
+    if body is not None:
+        body=urllib.urlencode(body)
+        
     # Get the HTTP object
     h = httplib2.Http(".cache")
     resp, content = h.request(url, method, headers=headers)
@@ -76,11 +91,15 @@ class BaseTwitterChallengeCmd(cmd.Cmd):
             return cmd.Cmd.onecmd(self,line)
         except Exception, e:
             print str(e)
+            raise e
         
 class UserCmd(BaseTwitterChallengeCmd):
 
     def do_add(self, arg):
-        print "do_user_add"
+        arg_list = self.get_args_list(arg, 2)
+        url_parameters = {'name': arg_list[1]}
+        user = doPut("users/"+arg_list[0],url_parameters)
+        print user
     def do_followers(self, arg):
         arg_list = self.get_args_list(arg, 1)
         timeline = doGet("users/"+arg_list[0]+"/followers")
@@ -88,9 +107,13 @@ class UserCmd(BaseTwitterChallengeCmd):
         arg_list = self.get_args_list(arg, 1)
         timeline = doGet("users/"+arg_list[0]+"/following")
     def do_follow(self, arg):
-        print "do_tweet_follow"
+        arg_list = self.get_args_list(arg, 2)
+        doPost("users/"+arg_list[0]+"/follow/"+arg_list[1])
+        print "user followed"
     def do_unfollow(self, arg):
-        print "do_tweet_follow"
+        arg_list = self.get_args_list(arg, 2)
+        doDelete("users/"+arg_list[0]+"/unfollow/"+arg_list[1])
+        print "user unfollowed"
                          
     def do_back(self, arg):
         return "stop"
