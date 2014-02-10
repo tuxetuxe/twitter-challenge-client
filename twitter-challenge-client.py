@@ -20,13 +20,6 @@ authentication_token = None
 def base_url():
     return "http://"+host+"/rest/"
 
-    
-def validateTokenExistence():
-	is_token_valid = authentication_token is not None
-	if not is_token_valid:
-		print "You need to login before using this action"
-	return is_token_valid
-
 def doPost(request_url,content_type="application/json"):
     return doHttpRequest(request_url,"POST",content_type)
     
@@ -53,47 +46,67 @@ def doHttpRequest(request_url, method, content_type="application/json"):
     
     return content;
 
-class UserCmd(cmd.Cmd):
+
+class BaseTwitterChallengeCmd(cmd.Cmd):
+
+    def get_args_list(self,arg,expected_args_count):
+        args_list = arg.split()
+        if len( args_list ) != expected_args_count:
+            raise Exception("Invalid number of arguments. Expecting " + str( expected_args_count ) +" but got " + str( len( args_list ) ) )
+            return
+        return args_list
+     
+    def validate_token_existence(self):
+    
+	    is_token_valid = authentication_token is not None
+	    if not is_token_valid:
+		    raise Exception("You need to login before using this action")
+	    return is_token_valid
+    
+    def precmd(self, line):
+        try:
+            if not ( line.startswith("login") or line.startswith("users") or line.startswith("tweets") or line.startswith("back") or line.startswith("exit") ) :
+                self.validate_token_existence()
+            return cmd.Cmd.precmd(self,line)
+        except Exception, e:
+            print str(e)
+        
+    def onecmd(self, line):
+        try:
+            return cmd.Cmd.onecmd(self,line)
+        except Exception, e:
+            print str(e)
+        
+class UserCmd(BaseTwitterChallengeCmd):
 
     def do_add(self, arg):
         print "do_user_add"
-        if not validateTokenExistence():
-            return   
     def do_followers(self, arg):
-        print "do_user_add"
-        if not validateTokenExistence():
-            return
+        arg_list = self.get_args_list(arg, 1)
+        timeline = doGet("users/"+arg_list[0]+"/followers")
     def do_following(self, arg):
-        print "do_user_add"
-        if not validateTokenExistence():
-            return
+        arg_list = self.get_args_list(arg, 1)
+        timeline = doGet("users/"+arg_list[0]+"/following")
     def do_follow(self, arg):
         print "do_tweet_follow"
-        if not validateTokenExistence():
-            return
     def do_unfollow(self, arg):
         print "do_tweet_follow"
-        if not validateTokenExistence():
-            return
                          
     def do_back(self, arg):
         return "stop"
         
-class TweetCmd(cmd.Cmd):
+class TweetCmd(BaseTwitterChallengeCmd):
 
     def do_add(self, arg):
         print "do_tweet_add"
-        if not validateTokenExistence():
-            return
     def do_timeline(self, arg):
-        print "do_user_add"
-        if not validateTokenExistence():
-            return
+        arg_list = self.get_args_list(arg, 1)
+        timeline = doGet("tweets/"+arg_list[0]+"/timeline")
 	
     def do_back(self, arg):
         return "stop"
         
-class TwitterChallengeClient(cmd.Cmd):
+class TwitterChallengeClient(BaseTwitterChallengeCmd):
 
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -125,10 +138,6 @@ class TwitterChallengeClient(cmd.Cmd):
 
     def do_logout(self, arg):
         global authentication_token
-        
-        if not validateTokenExistence():
-            return
-        
         token = doPost("security/logout")
         authentication_token = None
 
