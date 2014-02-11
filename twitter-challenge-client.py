@@ -1,15 +1,19 @@
 import sys, getopt
 import cmd
 import string, sys
+import urllib
 import httplib2
 import time
 import datetime
+import shlex
 
 #python debugger
 #    pip install pudb
 #import pudb; pu.db
 	
 NOT_LOGEDIN_PROMPT="[########-####-####-####-############]" + ':'
+JSON_MEDIA_TYPE="application/json"
+XML_MEDIA_TYPE="application/xml"
 
 # host to connect to
 host="localhost:8080"
@@ -17,23 +21,33 @@ host="localhost:8080"
 # authentication token holder
 authentication_token = None
 
+content_type = JSON_MEDIA_TYPE
+
+def smart_split(value):
+    lex = shlex.shlex(value)
+    lex.quotes = '"'
+    lex.whitespace_split = True
+    lex.commenters = ''
+    return list(lex)
+    
 def base_url():
     return "http://"+host+"/rest/"
 
-def doPut(request_url,url_parameters = {}, body=None,content_type="application/json",):
-    return doHttpRequest(request_url,"PUT",content_type,url_parameters,body)
+def doPut(request_url,url_parameters = {}):
+    return doHttpRequest(request_url,"PUT",url_parameters)
     
-def doPost(request_url,url_parameters = {}, body=None,content_type="application/json",):
-    return doHttpRequest(request_url,"POST",content_type,url_parameters,body)
+def doPost(request_url,url_parameters = {}, body=None):
+    return doHttpRequest(request_url,"POST",url_parameters)
 
-def doDelete(request_url,url_parameters = {}, body=None,content_type="application/json",):
-    return doHttpRequest(request_url,"DELETE",content_type,url_parameters,body)
+def doDelete(request_url,url_parameters = {}, body=None):
+    return doHttpRequest(request_url,"DELETE",url_parameters)
         
-def doGet(request_url,url_parameters = {},content_type="application/json",):
-    return doHttpRequest(request_url,"GET",content_type,url_parameters, None)
+def doGet(request_url,url_parameters = {}):
+    return doHttpRequest(request_url,"GET",url_parameters)
     
-def doHttpRequest(request_url, method, content_type="application/json", url_parameters = {}, body=None):
+def doHttpRequest(request_url, method,  url_parameters = {}):
     global authentication_token
+    global content_type
     
     url = base_url() + request_url 
 
@@ -41,38 +55,34 @@ def doHttpRequest(request_url, method, content_type="application/json", url_para
         url_parameters["token"] = authentication_token
         
     if url_parameters is not None and len( url_parameters ) > 0:
-         url += "?"
-         for key, value in url_parameters.iteritems():
-             url += key + "=" + value + "&"
-         url = url[:-1]
+         url += "?" + urllib.urlencode(url_parameters)
 
-    headers = {"Content-Type": content_type}
+    headers = {
+        "Content-Type": content_type ,
+        "Accept": content_type
+        }
     
-    print "\tURL: " + url
+    print " [" + method + "] " + url
            
-    if body is not None:
-        body=urllib.urlencode(body)
-        
     # Get the HTTP object
     h = httplib2.Http(".cache")
     resp, content = h.request(url, method, headers=headers)
-	
-    print content;
-    
+
     return content;
 
 
 class BaseTwitterChallengeCmd(cmd.Cmd):
 
     def get_args_list(self,arg,expected_args_count):
-        args_list = arg.split()
+        args_list = smart_split(arg)
         if len( args_list ) != expected_args_count:
             raise Exception("Invalid number of arguments. Expecting " + str( expected_args_count ) +" but got " + str( len( args_list ) ) )
             return
+        for index, item in enumerate(args_list):
+            args_list[index] = item.replace('\"','')
         return args_list
      
     def validate_token_existence(self):
-    
 	    is_token_valid = authentication_token is not None
 	    if not is_token_valid:
 		    raise Exception("You need to login before using this action")
@@ -91,8 +101,17 @@ class BaseTwitterChallengeCmd(cmd.Cmd):
             return cmd.Cmd.onecmd(self,line)
         except Exception, e:
             print str(e)
-            raise e
-        
+
+    def do_xml(self, arg):
+        global content_type
+        content_type = XML_MEDIA_TYPE
+        print "From now the responses should be in XML"
+
+    def do_json(self, arg):
+        global content_type
+        content_type = JSON_MEDIA_TYPE
+        print "From now the responses should be in JSON"
+
 class UserCmd(BaseTwitterChallengeCmd):
 
     def do_add(self, arg):
@@ -121,11 +140,15 @@ class UserCmd(BaseTwitterChallengeCmd):
 class TweetCmd(BaseTwitterChallengeCmd):
 
     def do_add(self, arg):
-        print "do_tweet_add"
+        arg_list = self.get_args_list(arg, 2)
+        url_parameters = {'contents': arg_list[1]}
+        user = doPut("tweets/"+arg_list[0],url_parameters)
+        print user
     def do_timeline(self, arg):
         arg_list = self.get_args_list(arg, 1)
         timeline = doGet("tweets/"+arg_list[0]+"/timeline")
-	
+        print timeline
+	    
     def do_back(self, arg):
         return "stop"
         

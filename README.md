@@ -2,6 +2,8 @@ twitter-challenge-client
 ========================
 
 # Requirements
+* urllib
+	+ pip install urllib
 * httplib2
 	+ pip install httplib2
 * pudb (just for debugging)
