@@ -6,6 +6,8 @@ import httplib2
 import time
 import datetime
 import shlex
+import xml.dom.minidom
+import json
 
 #python debugger
 #    pip install pudb
@@ -32,7 +34,24 @@ def smart_split(value):
     
 def base_url():
     return "http://"+host+"/rest/"
-
+def format_response(content):
+    content_formatted = content
+    try:
+        if content_type == XML_MEDIA_TYPE:
+            contents_xml = xml.dom.minidom.parseString(content)
+            content_formatted = contents_xml.toprettyxml()
+        
+        if content_type == JSON_MEDIA_TYPE:
+            contents_json = json.loads(content)
+            content_formatted = json.dumps( contents_json, sort_keys=False, indent=4, separators=(',', ': '))
+            
+    except Exception, e:
+        # Ok, maybe it was not a parsable response (plain text?)
+        # ... lets keep it as it is
+        content_formatted = content
+        
+    return content_formatted
+    
 def doPut(request_url,url_parameters = {}):
     return doHttpRequest(request_url,"PUT",url_parameters)
     
@@ -68,8 +87,8 @@ def doHttpRequest(request_url, method,  url_parameters = {}):
     h = httplib2.Http(".cache")
     resp, content = h.request(url, method, headers=headers)
 
+    content = format_response(content)    
     return content;
-
 
 class BaseTwitterChallengeCmd(cmd.Cmd):
 
@@ -121,18 +140,20 @@ class UserCmd(BaseTwitterChallengeCmd):
         print user
     def do_followers(self, arg):
         arg_list = self.get_args_list(arg, 1)
-        timeline = doGet("users/"+arg_list[0]+"/followers")
+        followers = doGet("users/"+arg_list[0]+"/followers")
+        print followers
     def do_following(self, arg):
         arg_list = self.get_args_list(arg, 1)
-        timeline = doGet("users/"+arg_list[0]+"/following")
+        following = doGet("users/"+arg_list[0]+"/following")
+        print following
     def do_follow(self, arg):
         arg_list = self.get_args_list(arg, 2)
-        doPost("users/"+arg_list[0]+"/follow/"+arg_list[1])
-        print "user followed"
+        result = doPost("users/"+arg_list[0]+"/follow/"+arg_list[1])
+        print result
     def do_unfollow(self, arg):
         arg_list = self.get_args_list(arg, 2)
-        doDelete("users/"+arg_list[0]+"/unfollow/"+arg_list[1])
-        print "user unfollowed"
+        result = doDelete("users/"+arg_list[0]+"/unfollow/"+arg_list[1])
+        print result
                          
     def do_back(self, arg):
         return "stop"
