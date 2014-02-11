@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import sys, getopt
 import cmd
 import string, sys
@@ -11,7 +13,7 @@ import json
 
 #python debugger
 #    pip install pudb
-#import pudb; pu.db
+import pudb; pu.db
 	
 NOT_LOGEDIN_PROMPT="[########-####-####-####-############]" + ':'
 JSON_MEDIA_TYPE="application/json"
@@ -29,11 +31,11 @@ def smart_split(value):
     lex = shlex.shlex(value)
     lex.quotes = '"'
     lex.whitespace_split = True
-    lex.commenters = ''
     return list(lex)
     
 def base_url():
     return "http://"+host+"/rest/"
+    
 def format_response(content):
     content_formatted = content
     try:
@@ -43,7 +45,7 @@ def format_response(content):
         
         if content_type == JSON_MEDIA_TYPE:
             contents_json = json.loads(content)
-            content_formatted = json.dumps( contents_json, sort_keys=False, indent=4, separators=(',', ': '))
+            content_formatted = json.dumps( contents_json, sort_keys=False, indent=4, separators=(',', ': '), ensure_ascii=False )
             
     except Exception, e:
         # Ok, maybe it was not a parsable response (plain text?)
@@ -109,11 +111,18 @@ class BaseTwitterChallengeCmd(cmd.Cmd):
     
     def precmd(self, line):
         try:
-            if not ( line.startswith("login") or line.startswith("users") or line.startswith("tweets") or line.startswith("back") or line.startswith("exit") ) :
+            needs_token = True
+            for action in ["login","back","exit","quit","help","json","xml"]:
+                if line.startswith( action ):
+                    needs_token = False
+                    break
+            
+            if needs_token :
                 self.validate_token_existence()
             return cmd.Cmd.precmd(self,line)
         except Exception, e:
             print str(e)
+            return ""
         
     def onecmd(self, line):
         try:
@@ -131,7 +140,27 @@ class BaseTwitterChallengeCmd(cmd.Cmd):
         content_type = JSON_MEDIA_TYPE
         print "From now the responses should be in JSON"
 
-class UserCmd(BaseTwitterChallengeCmd):
+    def help_json(self):
+        print "syntax: json"
+        print "-- After calling this action all responsed will be delivered in JSON"
+
+    def help_xml(self):
+        print "syntax: xml"
+        print "-- After calling this action all responsed will be delivered in XML"
+        
+    def help_host(self):
+        print "-- Change the host where you are connected with the command argument '--host <hostname>'"
+        print "--  Example: ./twitter-challenge-client.py --host twitter-challange.twimba.com"
+
+class BaseTwitterChallengeSubCmd(BaseTwitterChallengeCmd):
+    def do_back(self, arg):
+        return "stop"
+        
+    def help_back(self):
+        print "syntax: back"
+        print "-- Goes back to the main menu"
+
+class UserCmd(BaseTwitterChallengeSubCmd):
 
     def do_add(self, arg):
         arg_list = self.get_args_list(arg, 2)
@@ -157,10 +186,33 @@ class UserCmd(BaseTwitterChallengeCmd):
     def do_list(self, arg):
         users = doGet("users/")
         print users                     
-    def do_back(self, arg):
-        return "stop"
-        
-class TweetCmd(BaseTwitterChallengeCmd):
+
+    def help_add(self):
+        print "syntax: add",
+        print "-- Adds a new tweet"
+
+    def help_followers(self):
+        print "syntax: followers <username>"
+        print "-- Shows a list of the users that follow this user"
+
+    def help_following(self):
+        print "syntax: following <username>"
+        print "-- Shows a list of the users that this user is following"
+
+    def help_follow(self):
+        print "syntax: follow <username> <username to follow>"
+        print "-- Makes the user start following the other user"
+
+    def help_unfollow(self):
+        print "syntax: unfollow <username> <username to unfollow>"
+        print "-- Makes the user stop following the other user"
+
+    def help_list(self):
+        print "syntax: list",
+        print "-- Lists all the users"
+
+                
+class TweetCmd(BaseTwitterChallengeSubCmd):
 
     def do_add(self, arg):
         arg_list = self.get_args_list(arg, 2)
@@ -172,8 +224,13 @@ class TweetCmd(BaseTwitterChallengeCmd):
         timeline = doGet("tweets/"+arg_list[0]+"/timeline")
         print timeline
 	    
-    def do_back(self, arg):
-        return "stop"
+    def help_add(self):
+        print "syntax: add <username> <contents>"
+        print "-- Adds a new tweet in the user timeline"
+        
+    def help_timeline(self):
+        print "syntax: timeline <username>"
+        print "-- Shows the user timeline"
         
 class TwitterChallengeClient(BaseTwitterChallengeCmd):
 
@@ -201,27 +258,6 @@ class TwitterChallengeClient(BaseTwitterChallengeCmd):
             token = None
         authentication_token = token
 
-    def help_login(self):
-        print "syntax: login",
-        print "-- Login into the system"
-
-    def do_logout(self, arg):
-        global authentication_token
-        token = doPost("security/logout")
-        authentication_token = None
-
-    def help_logout(self):
-        print "syntax: logout",
-        print "-- Logouts, after this you need to login again or exit"
-
-    def do_exit(self, arg):
-    	self.do_logout(arg)
-    	sys.exit(1)
-    	
-    def help_exit(self):
-        print "syntax: exits the client",
-        print "-- Exits into the system"
-
     def do_users(self, arg):
         i = UserCmd()
         i.prompt = self.prompt[:-1]+'#Users:'
@@ -232,9 +268,43 @@ class TwitterChallengeClient(BaseTwitterChallengeCmd):
         i.prompt = self.prompt[:-1]+'#Tweets:'
         i.cmdloop()        
 
-    # shortcuts
+    def do_logout(self, arg):
+        global authentication_token
+        token = doPost("security/logout")
+        authentication_token = None
+
+    def do_exit(self, arg):
+        if authentication_token is not None:
+    	    self.do_logout(arg)
+    	sys.exit(0)
+    	
     def do_quit(self, arg):
     	self.do_exit(arg)
+
+    def help_login(self):
+        print "syntax: login",
+        print "-- Login into the system"
+
+    def help_users(self):
+        print "syntax: users",
+        print "-- Goes into the users sub-menu"
+
+    def help_tweets(self):
+        print "syntax: tweets"
+        print "-- Goes into the tweets sub-menu"
+
+    def help_quit(self):
+        print "syntax: quit"
+        print "-- Alias for the 'exit' action"
+    
+    def help_logout(self):
+        print "syntax: logout"
+        print "-- Logouts, after this you need to login again or exit"
+
+    def help_exit(self):
+        print "syntax: exits the client"
+        print "-- Exits into the system"
+
 
 def main(argv):
     global host
