@@ -154,7 +154,9 @@ class UserCmd(BaseTwitterChallengeCmd):
         arg_list = self.get_args_list(arg, 2)
         result = doDelete("users/"+arg_list[0]+"/unfollow/"+arg_list[1])
         print result
-                         
+    def do_list(self, arg):
+        users = doGet("users/")
+        print users                     
     def do_back(self, arg):
         return "stop"
         
