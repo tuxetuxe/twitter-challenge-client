@@ -13,7 +13,7 @@ import json
 
 #python debugger
 #    pip install pudb
-import pudb; pu.db
+#import pudb; pu.db
 	
 NOT_LOGEDIN_PROMPT="[########-####-####-####-############]" + ':'
 JSON_MEDIA_TYPE="application/json"
