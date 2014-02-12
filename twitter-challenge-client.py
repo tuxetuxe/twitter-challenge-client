@@ -94,9 +94,13 @@ def doHttpRequest(request_url, method,  url_parameters = {}):
 
 class BaseTwitterChallengeCmd(cmd.Cmd):
 
-    def get_args_list(self,arg,expected_args_count):
+    def get_args_list(self,arg,expected_args_count_min,expected_args_count_max = None):
         args_list = smart_split(arg)
-        if len( args_list ) != expected_args_count:
+        arg_count = len( args_list )
+        if expected_args_count_max is None:
+            expected_args_count_max = expected_args_count_min
+        
+        if arg_count < expected_args_count_min or None and arg_count > expected_args_count_max:
             raise Exception("Invalid number of arguments. Expecting " + str( expected_args_count ) +" but got " + str( len( args_list ) ) )
             return
         for index, item in enumerate(args_list):
@@ -219,9 +223,15 @@ class TweetCmd(BaseTwitterChallengeSubCmd):
         url_parameters = {'contents': arg_list[1]}
         user = doPut("tweets/"+arg_list[0],url_parameters)
         print user
+        
     def do_timeline(self, arg):
-        arg_list = self.get_args_list(arg, 1)
-        timeline = doGet("tweets/"+arg_list[0]+"/timeline")
+        arg_list = self.get_args_list(arg, 1,2)
+        url_parameters = {}
+        if len(arg_list) == 2 :
+            search = arg_list[1]
+            url_parameters = {'search': search}
+            
+        timeline = doGet("tweets/"+arg_list[0]+"/timeline",url_parameters)
         print timeline
 	    
     def help_add(self):
